@@ -11,6 +11,7 @@
       "static-before-instance",
       "variables-before-functions"
     ],
+    "no-trailing-whitespace": false,
     "no-angle-bracket-type-assertion": true,
     "no-default-export": true,
     "no-empty-interface": true,
