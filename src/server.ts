@@ -17,10 +17,15 @@ const onRequest = (req: Http.IncomingMessage, response: Http.ServerResponse) => 
 
     switch (req.url) {
         case '/party.mp4':
-            mediaHandler.getParty(req, response);
-            break;
+            return mediaHandler.getParty(req, response);
         case '/bling.mp3':
-            break;
+            return mediaHandler.getBling(req, response);
+        case '/bird.mp4':
+            return mediaHandler.getBird(req, response);
+        case '/client2':
+            return htmlHanlder.getClient2(req, response);
+        case '/client3':
+            return htmlHanlder.getClient3(req, response);
         case '/':
         default:
             return htmlHanlder.getIndex(req, response);

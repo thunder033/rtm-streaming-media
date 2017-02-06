@@ -10,34 +10,79 @@ import {Stream} from "stream";
 export class MediaHandler {
 
     public getParty(request: Http.IncomingMessage, response: Http.ServerResponse): void {
-        const filePath: string = path.resolve(__dirname, '../client/party.mp4');
+        this.getStream('party.mp4', request, response);
+    }
 
-        fs.stat(filePath, (err: ErrnoException, stats: fs.Stats) => {
-            // If the media file doesn't exist, throw an error
-            if (err) {
-                if (err.code === 'ENONET') {
-                    response.writeHead(404);
+    public getBird(request: Http.IncomingMessage, response: Http.ServerResponse): void {
+        this.getStream('bird.mp4', request, response);
+    }
+
+    public getBling(request: Http.IncomingMessage, response: Http.ServerResponse): void {
+        this.getStream('bling.mp3', request, response);
+    }
+
+    /**
+     * Get byte range
+     * @param filePath: the location of the file
+     * @param rangeIn: a range header
+     * @returns {Promise<[number]>} [start, end, total]
+     */
+    private getByteRange(filePath: string, rangeIn: string): Promise<number[]> {
+        return new Promise((resolve, reject) => {
+            fs.stat(filePath, (err: ErrnoException, stats: fs.Stats) => {
+                // If the media file doesn't exist, throw an error
+                if (err) {
+                    reject(err);
                 }
-                return response.end(err);
-            }
 
-            // Get the range of bytes to return to the stream
-            const range: string = request.headers.range;
+                const positions: string[] = rangeIn.replace(/bytes=/, '').split('-');
 
-            if (!range) {
-               return response.writeHead(416);
-            }
+                let start: number = parseInt(positions[0], 10);
 
-            const positions: string[] = range.replace(/bytes=/, '').split('-');
+                const total: number = stats.size;
+                const end = positions[1] ? parseInt(positions[1], 10) : total - 1;
 
-            let start: number = parseInt(positions[0], 10);
+                if (start > end) {
+                    start = end - 1;
+                }
 
-            const total: number = stats.size;
-            const end = positions[1] ? parseInt(positions[1], 10) : total - 1;
+                resolve([start, end, total]);
+            });
+        });
+    }
 
-            if (start > end) {
-                start = end - 1;
-            }
+    /**
+     * Get the MIME type for a given file
+     * @param {string} fileName
+     * @returns {string}
+     */
+    private getContentType(fileName: string): string {
+        const CONTENT_TYPES = {
+            mp3: 'audio/mpeg',
+            mp4: 'video/mp4',
+        };
+
+        const extension: string = fileName.split('.').pop();
+
+        return CONTENT_TYPES[extension];
+    }
+
+    /**
+     * Respond with the stream at the file path
+     * @param {string} fileName
+     * @param {Http.IncomingMessage} request
+     * @param {Http.ServerResponse} response
+     */
+    private getStream(fileName: string, request: Http.IncomingMessage, response: Http.ServerResponse): void {
+        const filePath: string = path.resolve(__dirname, `../client/${fileName}`);
+
+        if (!request.headers.range) {
+            response.writeHead(416);
+            return response.end('Invalid Range');
+        }
+
+        this.getByteRange(filePath, request.headers.range).then((range) => {
+            const [start, end, total] = range;
 
             const chunkSize: number = (end - start) + 1;
 
@@ -45,7 +90,7 @@ export class MediaHandler {
                 'Accept-Ranges': 'bytes',
                 'Content-Length': chunkSize,
                 'Content-Range': `bytes ${start}-${end}/${total}`,
-                'Content-Type': 'video/mp4',
+                'Content-Type': this.getContentType(filePath),
             });
 
             const stream: Stream = fs.createReadStream(filePath, {start, end});
@@ -59,6 +104,11 @@ export class MediaHandler {
             });
 
             return stream;
+        }, (err) => {
+            if (err.code === 'ENONET') {
+                response.writeHead(404);
+            }
+            return response.end(err);
         });
     }
 }
